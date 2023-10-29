@@ -1,5 +1,7 @@
+import json
 import time
 import datetime
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 
@@ -13,8 +15,74 @@ from docxtpl import DocxTemplate, InlineImage
 
 class PaymentReceipt:
 
+    class Money:
+        def __init__(self, number_money: float):
+            self.money = number_money
+
+        @property
+        def kopecks(self):
+            return int(round(self.money % 1, 2) * 100)
+
+        @property
+        def rubles(self):
+            return int(self.money)
+
+        def __str__(self):
+            return f"{self.rubles} руб. {self.kopecks} коп."
+
+        @property
+        def api_format(self):
+            return f"{self.rubles}{self.kopecks}"
+
     def __init__(self, path_template: str | Path):
         self.path_template = path_template
+        self.data_payment = {}
+
+    def serialize_json(self, json_srt):
+        data_payment = \
+            {
+                "organization": '',
+                "department": '',
+                "inn": "", # len 10
+                "kpp": "", # len 9
+                "personal_account": "", # len 11+- Лицевой счёт учреждения
+                "current_account": "", # len 20 Расчётный счёт учреждения
+                "bank_name": '',
+                "bik": "", # len 9
+                "correspondent_account": "", # len 20
+                "full_name": "", # ФИО клиента
+                "client_personal_account": "", # len 10+- ЛС клиента
+                "agreement_date": "", # 01.10.20 Настроить фунацию _serialize_date
+                "kbk": "", # len 20
+                "purpose_of_payment": "", # Назначение платежа
+                "date_payment": "", # За какой месяц идёт оплата
+                "kind_of_activity": "", # len 5 код вид деятельности
+                "total_sum": 3193.20, # Сумма пдатежа
+                "kindergarten_group": "" # Група детского платежа
+            }
+
+        json_dict: dict = json.loads(json_srt)
+
+        data_payment["organization"] = json_dict.get("organization")
+        data_payment["department"] = json_dict.get("department")
+        data_payment["inn"] = json_dict.get("inn")
+        data_payment["kpp"] = json_dict.get("kpp")
+        data_payment["personal_account"] = json_dict.get("personal_account")
+        data_payment["current_account"] = json_dict.get("current_account")
+        data_payment["bank_name"] = json_dict.get("bank_name")
+        data_payment["bik"] = json_dict.get("bik")
+        data_payment["correspondent_account"] = json_dict.get("correspondent_account")
+        data_payment["full_name"] = json_dict.get("full_name")
+        data_payment["client_personal_account"] = json_dict.get("client_personal_account")
+        data_payment["agreement_date"] = json_dict.get("agreement_date")
+        data_payment["kbk"] = json_dict.get("kbk")
+        data_payment["purpose_of_payment"] = json_dict.get("purpose_of_payment")
+        data_payment["date_payment"] = json_dict.get("date_payment")
+        data_payment["kind_of_activity"] = json_dict.get("kind_of_activity")
+        data_payment["total_sum"] = json_dict.get("total_sum")
+        data_payment["kindergarten_group"] = json_dict.get("kindergarten_group")
+
+        
 
     @staticmethod
     def generate_qrcode(data):
@@ -170,5 +238,11 @@ data = {"items": items.copy()}
 if __name__ == '__main__':
     t = time.time()
     receipts = PaymentReceipt("templates/test.docx")
-    receipts.fill_docx_template(data)
+
+    with open("data.json", "r", encoding="utf-8") as f:
+        dat = f.read()
+    receipts.serialize_json(dat)
+
+
+    # receipts.fill_docx_template(data)
     print(time.time()-t)
