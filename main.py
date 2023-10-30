@@ -1,4 +1,6 @@
 import json
+import os
+import subprocess
 import time
 import datetime
 from dataclasses import dataclass
@@ -253,6 +255,15 @@ class PaymentReceipt:
     def __init__(self, path_template: str | Path):
         self.path_template = path_template
 
+    def render(self, list_json, save_path: str = None):
+        temp_path = "temp/temp.docx" if save_path is None else save_path
+        self.fill_docx_template(list_json=list_json, save_path=temp_path)
+        try:
+            self.convert_docx_to_pdf(file_path=temp_path, remove_docx=True)
+        except Exception as e:
+            os.remove(temp_path)
+            raise Exception(e)
+
     def fill_docx_template(self, list_json: list[str], save_path: str | Path = None) -> None:
         if save_path is None: save_path = "temp.docx"
 
@@ -285,8 +296,33 @@ class PaymentReceipt:
         context = {"items": items}
         template.render(context)
         # Сохранение заполненного docx документа
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         template.save(save_path)
         self.del_first_line_in_docx(save_path)
+
+    @staticmethod
+    def convert_docx_to_pdf(file_path: str, remove_docx=True):
+        # Проверить, существует ли файл
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Файл {file_path} не найден.")
+
+        # Получить имя файла без расширения
+        file_name = os.path.splitext(file_path)[0]
+
+        # Конвертировать файл в pdf
+        exit_code = os.system(f"soffice --headless --convert-to pdf {file_path}")
+
+        # Проверить код выхода команды
+        if exit_code == 0:
+            pdf_path = file_name + ".pdf"
+
+            # Удалить docx-файл, если указано
+            if remove_docx:
+                os.remove(file_path)
+
+            return pdf_path
+        else:
+            raise Exception(f"Ошибка при конвертации файла {file_path} в pdf.")
 
     @staticmethod
     def del_first_line_in_docx(path_docx: str | Path):
@@ -309,5 +345,5 @@ if __name__ == '__main__':
         dat = f.read()
 
     receipts = PaymentReceipt("templates/test.docx")
-    receipts.fill_docx_template([dat])
+    receipts.render([dat])
     print(time.time() - t)
