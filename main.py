@@ -322,7 +322,7 @@ class PaymentReceipt:
 
             return pdf_path
         else:
-            raise Exception(f"Ошибка при конвертации файла {file_path} в pdf.")
+            raise Exception(f"Ошибка при конвертации файла {file_path} в pdf. Возможно у вас не установлен libreoffice")
 
     @staticmethod
     def del_first_line_in_docx(path_docx: str | Path):
