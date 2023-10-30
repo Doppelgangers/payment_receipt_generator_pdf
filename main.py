@@ -344,6 +344,6 @@ if __name__ == '__main__':
     with open("data.json", "r", encoding="utf-8") as f:
         dat = f.read()
 
-    receipts = PaymentReceipt("templates/test.docx")
-    receipts.render([dat])
+    receipts = PaymentReceipt("templates/template.docx")
+    receipts.render([dat]*3)
     print(time.time() - t)
