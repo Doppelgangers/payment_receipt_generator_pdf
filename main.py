@@ -116,8 +116,12 @@ class PaymentReceiptData:
     def name(self):
         return f"{self.department}({self.organization})"
 
-    def serialize_json(self, json_srt):
-        json_dict: dict = json.loads(json_srt)
+    def serialize_json(self, json_str: str):
+        """
+        Преобразует json в объекты python
+        При изменении имён в json файле заменить их в json_dict.get(``` Новое имя ```)
+        """
+        json_dict: dict = json.loads(json_str)
         # Запорнение базовых атрибутов
         self.organization = json_dict.get("organization")
         self.department = json_dict.get("department")
@@ -144,6 +148,12 @@ class PaymentReceiptData:
 
     @property
     def context_item(self) -> dict:
+        """
+        Из этого словаря будет формироваться элемент шаблона,
+        Здесь необходимо привести данные в тот str формат
+        который ождается быть увиден в шаблоне
+        :return:
+        """
         context_item = {
             "organization": self.organization,
             "department": self.department,
@@ -164,14 +174,13 @@ class PaymentReceiptData:
             "total_sum": self.total_sum.__str__(),
             "kindergarten_group": self.kindergarten_group
         }
-
-
-
         return context_item
 
 
 class Codification:
-
+    """
+    Класс для создания Qrcode, Barcode и тд.
+    """
     class QRCode:
 
         def __init__(self):
@@ -252,11 +261,12 @@ class PaymentReceipt:
         items = []
         for json_data in list_json:
             data_payment = PaymentReceiptData(json_data)
-
+            # Создание QR кода
             qr_code = Codification.QRCode()
             qr_code.get_attribute_list_in_payment_data(data_payment)
             qr_file = qr_code.generate()
 
+            # Создание Bar кода
             bar_code = Codification.BarCode(
                 org_pres_acc=data_payment.personal_account,
                 client_pers_acc=data_payment.client_personal_account,
@@ -267,7 +277,7 @@ class PaymentReceipt:
             barcode_file = bar_code.generate()
 
             context_item: dict = data_payment.context_item
-
+            # Добавление элементов в контекст
             context_item["barcode_image"] = InlineImage(template, barcode_file, height=Mm(15))
             context_item["qrcode_image"] = InlineImage(template, qr_file, width=Mm(28), height=Mm(28))
             items.append(context_item)
@@ -280,12 +290,16 @@ class PaymentReceipt:
 
     @staticmethod
     def del_first_line_in_docx(path_docx: str | Path):
+        """
+        Удаляет лишнюю строчку после генерации файла по шаблону
+        :param path_docx:
+        :return:
+        """
         docx = Document(path_docx)
         # Удаляем первую строку
         docx._element.body.remove(docx.paragraphs[0]._element)
         # Сохраняем изменения
         docx.save(path_docx)
-
 
 
 if __name__ == '__main__':
