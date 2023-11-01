@@ -8,7 +8,7 @@ from io import BytesIO
 from pathlib import Path
 
 import qrcode
-from barcode import Code128, Code39
+from barcode import Code39
 from barcode.writer import ImageWriter
 from docx import Document
 from docx.shared import Mm
@@ -118,12 +118,16 @@ class PaymentReceiptData:
     def name(self):
         return f"{self.department}({self.organization})"
 
-    def serialize_json(self, json_str: str):
+    def serialize_json(self, json_str: str | dict):
         """
         Преобразует json в объекты python
         При изменении имён в json файле заменить их в json_dict.get(``` Новое имя ```)
         """
-        json_dict: dict = json.loads(json_str)
+        if type(json_str) is str:
+            json_dict: dict = json.loads(json_str)
+        if type(json_str) is dict:
+            json_dict: dict = json_str
+
         # Запорнение базовых атрибутов
         self.organization = json_dict.get("organization")
         self.department = json_dict.get("department")
@@ -139,7 +143,7 @@ class PaymentReceiptData:
         self.agreement_date = json_dict.get("agreement_date")
         self.kbk = json_dict.get("kbk")
         self.purpose_of_payment = json_dict.get("purpose_of_payment")
-        self.date_payment = json_dict.get("date_payment")
+        self.date_payment = json_dict.get("payment_period")
         self.kind_of_activity = json_dict.get("kind_of_activity")
         self.total_sum = json_dict.get("total_sum")
         self.kindergarten_group = json_dict.get("kindergarten_group")
@@ -255,18 +259,18 @@ class PaymentReceipt:
     def __init__(self, path_template: str | Path):
         self.path_template = path_template
 
-    def render(self, list_json, save_path: str = None):
-        temp_path = "temp/temp.docx" if save_path is None else save_path
-        self.fill_docx_template(list_json=list_json, save_path=temp_path)
+    def render(self, list_json, save_path: str|Path = None, filename: str = None):
+        filename = filename if filename else "receipt"
+        save_path = Path('temp') if save_path is None else Path(save_path)
+        self.fill_docx_template(list_json=list_json, save_path_file=save_path / (filename + ".docx"))
         try:
-            self.convert_docx_to_pdf(file_path=temp_path, remove_docx=True)
+            self.convert_docx_to_pdf(file_path_docx=save_path/(filename+".docx"), save_folder_path_pdf=save_path, remove_docx=True)
         except Exception as e:
-            os.remove(temp_path)
+            os.remove(save_path/(filename+".docx"))
             raise Exception(e)
 
-    def fill_docx_template(self, list_json: list[str], save_path: str | Path = None) -> None:
-        if save_path is None: save_path = "temp.docx"
-
+    def fill_docx_template(self, list_json: list[str], save_path_file: str | Path = None) -> None:
+        if save_path_file is None: save_path_file = "temp.docx"
         # Инициализация шаблона
         template = DocxTemplate(self.path_template)
         items = []
@@ -296,54 +300,62 @@ class PaymentReceipt:
         context = {"items": items}
         template.render(context)
         # Сохранение заполненного docx документа
-        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-        template.save(save_path)
-        self.del_first_line_in_docx(save_path)
+        Path(save_path_file).parent.mkdir(parents=True, exist_ok=True)
+        template.save(save_path_file)
+        self.del_first_line_in_docx(save_path_file)
 
     @staticmethod
-    def convert_docx_to_pdf(file_path: str, remove_docx=True):
+    def convert_docx_to_pdf(file_path_docx: str, save_folder_path_pdf: str, remove_docx=True):
         # Проверить, существует ли файл
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Файл {file_path} не найден.")
-
+        if not os.path.exists(file_path_docx):
+            raise FileNotFoundError(f"Файл {file_path_docx} не найден.")
         # Получить имя файла без расширения
-        file_name = os.path.splitext(file_path)[0]
-
+        file_name = os.path.splitext(file_path_docx)[0]
         # Конвертировать файл в pdf
-        exit_code = os.system(f"soffice --headless --convert-to pdf {file_path}")
-
+        exit_code = os.system(f"soffice --headless --convert-to pdf {file_path_docx} --outdir {save_folder_path_pdf}")
         # Проверить код выхода команды
         if exit_code == 0:
             pdf_path = file_name + ".pdf"
-
             # Удалить docx-файл, если указано
             if remove_docx:
-                os.remove(file_path)
-
+                os.remove(file_path_docx)
             return pdf_path
         else:
-            raise Exception(f"Ошибка при конвертации файла {file_path} в pdf. Возможно у вас не установлен libreoffice")
+            raise Exception(f"Ошибка при конвертации файла {file_path_docx} в pdf. Возможно у вас не установлен libreoffice")
 
     @staticmethod
     def del_first_line_in_docx(path_docx: str | Path):
         """
         Удаляет лишнюю строчку после генерации файла по шаблону
-        :param path_docx:
-        :return:
         """
         docx = Document(path_docx)
-        # Удаляем первую строку
         docx._element.body.remove(docx.paragraphs[0]._element)
-        # Сохраняем изменения
         docx.save(path_docx)
 
 
 if __name__ == '__main__':
     t = time.time()
-
-    with open("data.json", "r", encoding="utf-8") as f:
-        dat = f.read()
+    da = {
+    "organization": "МАДОУ \"Детский сад № 100\"",
+    "department": "Департамент финансов г.Н.Новгорода",
+    "inn": "5260040678",
+    "kpp": "526001001",
+    "personal_account": "07040754581",
+    "current_account": "03234643227010003204",
+    "bank_name": "ВОЛГО-ВЯТСКОЕ ГУ БАНКА РОССИИ//УФК по Нижегородской области г. Нижний Новгород",
+    "bik": "012202102",
+    "correspondent_account": "40102810745370000024",
+    "full_name": "Тарасова Есения",
+    "client_personal_account": "4100100232",
+    "agreement_date": "01.10.2020",
+    "kbk": "07507011130199404130",
+    "purpose_of_payment": "Оплата за Родительская плата за присмотр и уход за детьми.",
+    "payment_period": "01.05.2023",
+    "kind_of_activity": "04013",
+    "total_sum": 3193.20,
+    "kindergarten_group": "100 13 2 младшая"
+}
 
     receipts = PaymentReceipt("templates/template.docx")
-    receipts.render([dat]*3)
+    receipts.render([da]*5, save_path="D:\Desktop\sq", filename="test")
     print(time.time() - t)
