@@ -103,7 +103,7 @@ class PaymentReceiptData:
         self.correspondent_account = None
         self.full_name = None
         self.client_personal_account = None
-        self.agreement_date: PaymentReceiptData.PDate = None
+        self.agreement_date: PaymentReceiptData.PDate | str = None
         self.kbk = None
         self.purpose_of_payment = None
         self.date_payment: PaymentReceiptData.PDate = None
@@ -150,7 +150,7 @@ class PaymentReceiptData:
         # Преобразование строчных атрибутов в объекты python
         self.total_sum = self.Money(self.total_sum)
         self.date_payment = self.PDate(self.date_payment)
-        self.agreement_date = self.PDate(self.agreement_date)
+        self.agreement_date = self.PDate(self.agreement_date) if self.agreement_date else self.agreement_date
 
     @property
     def context_item(self) -> dict:
@@ -259,12 +259,12 @@ class PaymentReceipt:
     def __init__(self, path_template: str | Path):
         self.path_template = path_template
 
-    def render(self, list_json, save_path: str|Path = None, filename: str = None):
+    def render(self, list_json, save_path: str | Path = None, filename: str = None):
         filename = filename if filename else "receipt"
         save_path = Path('temp') if save_path is None else Path(save_path)
         self.fill_docx_template(list_json=list_json, save_path_file=save_path / (filename + ".docx"))
         try:
-            self.convert_docx_to_pdf(file_path_docx=save_path/(filename+".docx"), save_folder_path_pdf=save_path, remove_docx=True)
+            self.convert_docx_to_pdf(file_path_docx=save_path/(filename+".docx"), save_folder_path_pdf=save_path)
         except Exception as e:
             os.remove(save_path/(filename+".docx"))
             raise Exception(e)
@@ -312,7 +312,16 @@ class PaymentReceipt:
         # Получить имя файла без расширения
         file_name = os.path.splitext(file_path_docx)[0]
         # Конвертировать файл в pdf
-        exit_code = os.system(f"soffice --headless --convert-to pdf {file_path_docx} --outdir {save_folder_path_pdf}")
+        command = [
+            "soffice",
+            "--headless",
+            "--convert-to",
+            "pdf",
+            file_path_docx,
+            "--outdir",
+            save_folder_path_pdf
+        ]
+        exit_code = subprocess.call(command)
         # Проверить код выхода команды
         if exit_code == 0:
             pdf_path = file_name + ".pdf"
@@ -339,7 +348,7 @@ if __name__ == '__main__':
     "organization": "МАДОУ \"Детский сад № 100\"",
     "department": "Департамент финансов г.Н.Новгорода",
     "inn": "5260040678",
-    "kpp": "526001001",
+    "kpp": None,
     "personal_account": "07040754581",
     "current_account": "03234643227010003204",
     "bank_name": "ВОЛГО-ВЯТСКОЕ ГУ БАНКА РОССИИ//УФК по Нижегородской области г. Нижний Новгород",
@@ -347,15 +356,15 @@ if __name__ == '__main__':
     "correspondent_account": "40102810745370000024",
     "full_name": "Тарасова Есения",
     "client_personal_account": "4100100232",
-    "agreement_date": "01.10.2020",
+    "agreement_date": "",
     "kbk": "07507011130199404130",
     "purpose_of_payment": "Оплата за Родительская плата за присмотр и уход за детьми.",
-    "payment_period": "01.05.2023",
+    "payment_period": "01.10.2020",
     "kind_of_activity": "04013",
     "total_sum": 3193.20,
     "kindergarten_group": "100 13 2 младшая"
 }
 
     receipts = PaymentReceipt("templates/template.docx")
-    receipts.render([da]*5, save_path="D:\Desktop\sq", filename="test")
+    receipts.render([da]*1, save_path="temp", filename="test")
     print(time.time() - t)
